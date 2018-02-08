@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"html/template"
+	"io/ioutil"
 	"log"
 	"net/http"
 
@@ -35,10 +38,10 @@ func main() {
 
 	// Initialize the hydra SDK. The defaults work if you started hydra as described in the README.md
 	client, err = hydra.NewSDK(&hydra.Configuration{
-		ClientID:     env.Getenv("HYDRA_CLIENT_ID", "demo"),
-		ClientSecret: env.Getenv("HYDRA_CLIENT_SECRET", "demo"),
-		EndpointURL:  env.Getenv("HYDRA_CLUSTER_URL", "http://localhost:4444"),
-		Scopes:       []string{"hydra.consent"},
+		ClientID:     env.Getenv("HYDRA_CLIENT_ID", "alastria"),
+		ClientSecret: env.Getenv("HYDRA_CLIENT_SECRET", "2YmZ2JVjZvw9xefT"),
+		EndpointURL:  env.Getenv("HYDRA_CLUSTER_URL", "http://ec2-52-56-86-239.eu-west-2.compute.amazonaws.com:4444"),
+		Scopes:       []string{"alastria.monitor"},
 	})
 	if err != nil {
 		log.Fatalf("Unable to connect to the Hydra SDK because %s", err)
@@ -56,16 +59,33 @@ func main() {
 	n.Use(negronilogrus.NewMiddleware())
 	n.UseHandler(r)
 
-	// Start http server
-	log.Println("Listening on :" + env.Getenv("PORT", "3000"))
-	http.ListenAndServe(":"+env.Getenv("PORT", "3000"), n)
+	if env.Getenv("TLS", "false") == "false" {
+		// Start http server [ // Inicie el servidor http]
+		log.Println("Listening on :" + env.Getenv("PORT", "3000"))
+		http.ListenAndServe(":"+env.Getenv("PORT", "3000"), n)
+	} else {
+		// Start http server
+		srv := &http.Server{
+			Addr:         ":" + env.Getenv("PORT", "4445"),
+			Handler:      n,
+			TLSConfig:    configureTLS(),
+			TLSNextProto: make(map[string]func(*http.Server, *tls.Conn, http.Handler), 0),
+		}
+
+		log.Println("Serving: https://localhost:" + env.Getenv("PORT", "4445"))
+		// Load our TLS key pair to use for authentication
+		log.Panic(srv.ListenAndServeTLS(
+			env.Getenv("CertFilePath", "certs/monitor-server.crt"),
+			env.Getenv("KeyFilePath", "certs/monitor-server.key"),
+		))
+	}
 }
 
 // handles request at /home - a small page that let's you know what you can do in this app. Usually the first.
 // page a user sees.
 func handleHome(w http.ResponseWriter, _ *http.Request) {
 	var config = client.GetOAuth2Config()
-	config.RedirectURL = "http://localhost:4445/callback"
+	config.RedirectURL = "http://ec2-52-56-86-239.eu-west-2.compute.amazonaws.com:4445/callback"
 	config.Scopes = []string{"offline", "openid"}
 
 	var authURL = client.GetOAuth2Config().AuthCodeURL(state) + "&nonce=" + state
@@ -243,4 +263,39 @@ func renderTemplate(w http.ResponseWriter, id string, d interface{}) bool {
 		return false
 	}
 	return true
+}
+
+func configureTLS() *tls.Config {
+	log.Println("Preparando la configuración TLS ")
+
+	caFilePath := env.Getenv("CAFilePath", "certs/alastria-ca.crt")
+
+	// http://www.levigross.com/2015/11/21/mutual-tls-authentication-in-go/
+	// Load our CA certificate
+	clientCACert, err := ioutil.ReadFile(caFilePath)
+	if err != nil {
+		log.Panic("Unable to open cert", err)
+	}
+	clientCertPool := x509.NewCertPool()
+	clientCertPool.AppendCertsFromPEM(clientCACert)
+
+	tlsConfig := &tls.Config{
+		ClientAuth: tls.RequireAndVerifyClientCert,
+		ClientCAs:  clientCertPool,
+		CipherSuites: []uint16{
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+		},
+		PreferServerCipherSuites: true,
+		MinVersion:               tls.VersionTLS12,
+		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+	}
+
+	tlsConfig.BuildNameToCertificate()
+
+	log.Println("Finalizando la configuración TLS")
+
+	return tlsConfig
 }
