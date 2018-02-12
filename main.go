@@ -86,7 +86,7 @@ func main() {
 func handleHome(w http.ResponseWriter, _ *http.Request) {
 	var config = client.GetOAuth2Config()
 	config.RedirectURL = "http://ec2-52-56-86-239.eu-west-2.compute.amazonaws.com:4445/callback"
-	config.Scopes = []string{"offline", "openid"}
+	config.Scopes = []string{"offline", "openid", "alastria.monitor"}
 
 	var authURL = client.GetOAuth2Config().AuthCodeURL(state) + "&nonce=" + state
 	renderTemplate(w, "home.html", authURL)
