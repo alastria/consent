@@ -33,6 +33,12 @@ var client hydra.SDK
 // to make sense, it performs the OAuth 2.0 authorize code flow.
 var state = "demostatedemostatedemo"
 
+// "http://ec2-52-56-86-239.eu-west-2.compute.amazonaws.com:4444"
+const endpoint = "http://localhost:4444"
+
+// "http://ec2-52-56-86-239.eu-west-2.compute.amazonaws.com:4445/callback"
+const callback = "http://localhost:4445/callback"
+
 func main() {
 	var err error
 
@@ -40,8 +46,8 @@ func main() {
 	client, err = hydra.NewSDK(&hydra.Configuration{
 		ClientID:     env.Getenv("HYDRA_CLIENT_ID", "alastria"),
 		ClientSecret: env.Getenv("HYDRA_CLIENT_SECRET", "2YmZ2JVjZvw9xefT"),
-		EndpointURL:  env.Getenv("HYDRA_CLUSTER_URL", "http://ec2-52-56-86-239.eu-west-2.compute.amazonaws.com:4444"),
-		Scopes:       []string{"alastria.monitor"},
+		EndpointURL:  env.Getenv("HYDRA_CLUSTER_URL", endpoint),
+		Scopes:       []string{"hydra.consent"},
 	})
 	if err != nil {
 		log.Fatalf("Unable to connect to the Hydra SDK because %s", err)
@@ -61,8 +67,8 @@ func main() {
 
 	if env.Getenv("TLS", "false") == "false" {
 		// Start http server [ // Inicie el servidor http]
-		log.Println("Listening on :" + env.Getenv("PORT", "3000"))
-		http.ListenAndServe(":"+env.Getenv("PORT", "3000"), n)
+		log.Println("Listening on :" + env.Getenv("PORT", "4445"))
+		http.ListenAndServe(":"+env.Getenv("PORT", "4445"), n)
 	} else {
 		// Start http server
 		srv := &http.Server{
@@ -85,7 +91,7 @@ func main() {
 // page a user sees.
 func handleHome(w http.ResponseWriter, _ *http.Request) {
 	var config = client.GetOAuth2Config()
-	config.RedirectURL = "http://ec2-52-56-86-239.eu-west-2.compute.amazonaws.com:4445/callback"
+	config.RedirectURL = callback
 	config.Scopes = []string{"offline", "openid", "alastria.monitor"}
 
 	var authURL = client.GetOAuth2Config().AuthCodeURL(state) + "&nonce=" + state
