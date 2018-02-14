@@ -34,10 +34,10 @@ var client hydra.SDK
 var state = "demostatedemostatedemo"
 
 // "http://ec2-52-56-86-239.eu-west-2.compute.amazonaws.com:4444"
-const endpoint = "http://localhost:4444"
+const endpoint = "http://ec2-52-56-86-239.eu-west-2.compute.amazonaws.com:4444"
 
 // "http://ec2-52-56-86-239.eu-west-2.compute.amazonaws.com:4445/callback"
-const callback = "http://localhost:4445/callback"
+const callback = "http://ec2-52-56-86-239.eu-west-2.compute.amazonaws.com:4445/callback"
 
 func main() {
 	var err error
